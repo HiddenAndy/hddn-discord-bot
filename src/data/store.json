@@ -1,0 +1,242 @@
+{
+  "members": [
+    {
+      "id": "Andy",
+      "name": "Andy",
+      "active": true,
+      "discordUserId": "1503245272871079976"
+    },
+    {
+      "id": "Jinuk",
+      "name": "Jinuk",
+      "active": false,
+      "discordUserId": ""
+    },
+    {
+      "id": "Daisy",
+      "name": "Daisy",
+      "active": false,
+      "discordUserId": ""
+    },
+    {
+      "id": "Jenny",
+      "name": "Jenny",
+      "active": false,
+      "discordUserId": ""
+    },
+    {
+      "id": "Jpark",
+      "name": "Jpark",
+      "active": true,
+      "discordUserId": "789090450458935296"
+    },
+    {
+      "id": "Joy",
+      "name": "Joy",
+      "active": false,
+      "discordUserId": ""
+    },
+    {
+      "id": "Zito",
+      "name": "Zito",
+      "active": false,
+      "discordUserId": ""
+    },
+    {
+      "id": "Ellie",
+      "name": "Ellie",
+      "active": false,
+      "discordUserId": ""
+    },
+    {
+      "id": "Jalynne",
+      "name": "Jalynne",
+      "active": false,
+      "discordUserId": ""
+    },
+    {
+      "id": "Saiah",
+      "name": "Saiah",
+      "active": false,
+      "discordUserId": ""
+    }
+  ],
+  "cleaningZones": [
+    {
+      "category": "바닥 걸레",
+      "zone": "바닥 걸레 A(테이블)",
+      "active": true,
+      "imagePath": "assets/cleaning-zones/mop_a.png"
+    },
+    {
+      "category": "바닥 걸레",
+      "zone": "바닥 걸레 B(방)",
+      "active": true,
+      "imagePath": "assets/cleaning-zones/mop_b.png"
+    },
+    {
+      "category": "바닥 걸레",
+      "zone": "바닥 걸레 C(탕비실)",
+      "active": true,
+      "imagePath": "assets/cleaning-zones/mop_c.png"
+    },
+    {
+      "category": "먼지",
+      "zone": "먼지 A(공용컴)",
+      "active": true,
+      "imagePath": "assets/cleaning-zones/dust_a.png"
+    },
+    {
+      "category": "먼지",
+      "zone": "먼지 B(탕비실)",
+      "active": true,
+      "imagePath": "assets/cleaning-zones/dust_b.png"
+    },
+    {
+      "category": "먼지",
+      "zone": "먼지 C(방)",
+      "active": true,
+      "imagePath": "assets/cleaning-zones/dust_c.png"
+    },
+    {
+      "category": "먼지",
+      "zone": "먼지 D(책장)",
+      "active": false,
+      "imagePath": "assets/cleaning-zones/dust_d.png"
+    },
+    {
+      "category": "청소기",
+      "zone": "청소기 A(밖)",
+      "active": true,
+      "imagePath": "assets/cleaning-zones/vacuum_a.png"
+    },
+    {
+      "category": "청소기",
+      "zone": "청소기 B(안)",
+      "active": true,
+      "imagePath": "assets/cleaning-zones/vacuum_b.png"
+    },
+    {
+      "category": "주방",
+      "zone": "주방 A(전자렌지,오븐)",
+      "active": true,
+      "imagePath": "assets/cleaning-zones/kitchen_a.png"
+    },
+    {
+      "category": "주방",
+      "zone": "주방 B(정수기,커피머신)",
+      "active": true,
+      "imagePath": "assets/cleaning-zones/kitchen_b.png"
+    },
+    {
+      "category": "주방",
+      "zone": "주방 C(냉장고,계수대)",
+      "active": false,
+      "imagePath": "assets/cleaning-zones/kitchen_c.png"
+    },
+    {
+      "category": "간식 정리 채우기",
+      "zone": "간식 정리 채우기",
+      "active": false,
+      "imagePath": "assets/cleaning-zones/snacks.png"
+    },
+    {
+      "category": "식물 물 주기",
+      "zone": "식물 물 주기",
+      "active": true,
+      "imagePath": "assets/cleaning-zones/plants.png"
+    }
+  ],
+  "preferences": [
+    {
+      "memberId": "Andy",
+      "categories": [
+        "먼지",
+        "청소기"
+      ]
+    },
+    {
+      "memberId": "Jpark",
+      "categories": [
+        "먼지",
+        "청소기"
+      ]
+    }
+  ],
+  "assignments": [
+    {
+      "assignmentDate": "2026-05-18",
+      "memberId": "Andy",
+      "memberName": "Andy",
+      "discordUserId": "1503245272871079976",
+      "zone": "청소기 B(안)",
+      "category": "청소기",
+      "reason": "random",
+      "createdAt": "26. 5. 17. 오후 5:24:55",
+      "imagePath": "assets/cleaning-zones/vacuum_b.png"
+    },
+    {
+      "assignmentDate": "2026-05-18",
+      "memberId": "Jpark",
+      "memberName": "Jpark",
+      "discordUserId": "789090450458935296",
+      "zone": "먼지 B(탕비실)",
+      "category": "먼지",
+      "reason": "preference",
+      "createdAt": "26. 5. 17. 오후 5:25:08",
+      "imagePath": "assets/cleaning-zones/dust_b.png"
+    }
+  ],
+  "cleaningDrawSessions": {
+    "2026-05-18": {
+      "assignmentDate": "2026-05-18",
+      "startedAt": "2026-05-17T14:30:39.784Z",
+      "endsAt": "2026-05-17T15:00:39.784Z",
+      "exemptMemberIds": []
+    }
+  },
+  "settings": {
+    "cleaningSchedule": {
+      "weekday": 1,
+      "hour": 12,
+      "minute": 55
+    }
+  },
+  "gatheringsByChannel": {
+    "1505171640605216889": {
+      "meetingDate": "2026-05-22",
+      "voteDeadline": "2026-05-17",
+      "venueOptions": [
+        {
+          "name": "안암(안국역)",
+          "description": "국밥-12,000",
+          "venueUrl": "https://naver.me/GL8iEyoa"
+        },
+        {
+          "name": "계월(서울숲)",
+          "description": "백곰탕-11,000\n홍곰탕-12,000\n닭무침, 닭수육-18,000",
+          "venueUrl": "https://naver.me/F3TXPuAs"
+        },
+        {
+          "name": "안덕(경복궁역)",
+          "description": "만둣국-16,000\n제육-32,000",
+          "venueUrl": "https://naver.me/x8tp8jOa"
+        }
+      ],
+      "participants": [
+        {
+          "discordUserId": "789090450458935296",
+          "name": "91"
+        },
+        {
+          "discordUserId": "1503245272871079976",
+          "name": "Andy"
+        }
+      ],
+      "votes": {
+        "1503245272871079976": "안암(안국역)"
+      },
+      "voteResultAnnouncedAt": "2026-05-17T15:00:54.037Z"
+    }
+  }
+}
