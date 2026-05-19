@@ -160,6 +160,41 @@ export async function updateCleaningZone(originalZoneName, { category, zone, act
   return { category: categoryName, zone: zoneName, active };
 }
 
+export async function setCleaningPreferenceForMember(memberId, categories) {
+  const normalizedMemberId = String(memberId || '').trim();
+  const normalizedCategories = categories.map((category) => String(category || '').trim()).filter(Boolean);
+
+  if (!normalizedMemberId) {
+    throw new UserFacingError('선호구역을 설정할 인원을 선택해주세요.');
+  }
+
+  return updateStore((store) => {
+    const member = store.members.find((item) => item.id === normalizedMemberId);
+    if (!member) {
+      throw new UserFacingError(`멤버를 찾을 수 없어요: ${normalizedMemberId}`);
+    }
+
+    const activeCategories = new Set(store.cleaningZones.filter((zone) => zone.active).map((zone) => zone.category));
+    const invalid = normalizedCategories.find((category) => !activeCategories.has(category));
+    if (invalid) {
+      throw new UserFacingError(`활성 청소 카테고리에 없는 값이에요: ${invalid}`);
+    }
+
+    const uniqueCategories = Array.from(new Set(normalizedCategories)).slice(0, 2);
+    const existing = store.preferences.find((preference) => preference.memberId === normalizedMemberId);
+    if (existing) {
+      existing.categories = uniqueCategories;
+    } else {
+      store.preferences.push({ memberId: normalizedMemberId, categories: uniqueCategories });
+    }
+
+    return {
+      member,
+      categories: uniqueCategories,
+    };
+  });
+}
+
 export async function setCleaningSchedule(schedule) {
   return updateStore((store) => {
     store.settings.cleaningSchedule = schedule;

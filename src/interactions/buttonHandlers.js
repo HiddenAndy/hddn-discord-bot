@@ -34,11 +34,15 @@ import { readStore } from '../data/store.js';
 import { isAdmin } from '../utils/permissions.js';
 import {
   buildCleaningAdminPanel,
-  buildMemberModal,
   buildScheduleModal,
   buildZoneModal,
   CLEANING_ADMIN_CUSTOM_IDS,
 } from '../ui/cleaningAdminPanel.js';
+import {
+  buildCommonMemberModal,
+  buildMemberAdminPanel,
+  MEMBER_ADMIN_CUSTOM_IDS,
+} from '../ui/memberAdminPanel.js';
 import { buildCleaningPanelMessage } from '../ui/cleaningPanel.js';
 import {
   buildGatheringAdminPanel,
@@ -59,14 +63,15 @@ import { readModalContext } from './modalContext.js';
 const buttonHandlers = new Map([
   [CLEANING_DRAW_BUTTON_ID, handleCleaningDrawButton],
   [CLEANING_ADMIN_CUSTOM_IDS.viewSummary, handleViewSummaryButton],
-  [CLEANING_ADMIN_CUSTOM_IDS.viewMembers, handleViewMembersButton],
   [CLEANING_ADMIN_CUSTOM_IDS.viewZones, handleViewZonesButton],
+  [CLEANING_ADMIN_CUSTOM_IDS.viewPreferences, handleViewPreferencesButton],
   [CLEANING_ADMIN_CUSTOM_IDS.viewSchedule, handleViewScheduleButton],
-  [CLEANING_ADMIN_CUSTOM_IDS.addMember, handleAddMemberButton],
   [CLEANING_ADMIN_CUSTOM_IDS.addZone, handleAddZoneButton],
   [CLEANING_ADMIN_CUSTOM_IDS.editSchedule, handleEditScheduleButton],
   [CLEANING_ADMIN_CUSTOM_IDS.resetDraw, handleResetCleaningDrawButton],
   [CLEANING_ADMIN_CUSTOM_IDS.refresh, handleRefreshAdminPanelButton],
+  [MEMBER_ADMIN_CUSTOM_IDS.addMember, handleAddMemberButton],
+  [MEMBER_ADMIN_CUSTOM_IDS.refresh, handleRefreshMemberAdminPanelButton],
   [GATHERING_ADMIN_CUSTOM_IDS.editDate, handleGatheringDateButton],
   [GATHERING_ADMIN_CUSTOM_IDS.addVenue, handleGatheringVenueButton],
   [GATHERING_ADMIN_CUSTOM_IDS.clearVenues, handleGatheringClearVenuesButton],
@@ -110,8 +115,8 @@ async function handleCleaningDrawButton(interaction) {
 }
 
 async function handleAddMemberButton(interaction) {
-  assertCleaningAdminInteraction(interaction);
-  await interaction.showModal(buildMemberModal());
+  assertMemberAdminInteraction(interaction);
+  await interaction.showModal(buildCommonMemberModal());
 }
 
 async function handleAddZoneButton(interaction) {
@@ -120,14 +125,14 @@ async function handleAddZoneButton(interaction) {
 }
 
 async function handleEditSelectedMemberButton(interaction) {
-  assertCleaningAdminInteraction(interaction);
-  const memberId = resolveButtonContextValue(interaction.customId, CLEANING_ADMIN_CUSTOM_IDS.editSelectedMemberPrefix);
+  assertMemberAdminInteraction(interaction);
+  const memberId = resolveButtonContextValue(interaction.customId, MEMBER_ADMIN_CUSTOM_IDS.editSelectedMemberPrefix);
   const member = await getCleaningMember(memberId);
   if (!member) {
     throw new UserFacingError(`수정할 멤버를 찾을 수 없어요: ${memberId}`);
   }
 
-  await interaction.showModal(buildMemberModal(member));
+  await interaction.showModal(buildCommonMemberModal(member));
 }
 
 async function handleEditSelectedZoneButton(interaction) {
@@ -157,14 +162,14 @@ async function handleViewSummaryButton(interaction) {
   await interaction.update(buildCleaningAdminPanel(await getCleaningAdminSnapshot(), 'summary'));
 }
 
-async function handleViewMembersButton(interaction) {
-  assertCleaningAdminInteraction(interaction);
-  await interaction.update(buildCleaningAdminPanel(await getCleaningAdminSnapshot(), 'members'));
-}
-
 async function handleViewZonesButton(interaction) {
   assertCleaningAdminInteraction(interaction);
   await interaction.update(buildCleaningAdminPanel(await getCleaningAdminSnapshot(), 'zones'));
+}
+
+async function handleViewPreferencesButton(interaction) {
+  assertCleaningAdminInteraction(interaction);
+  await interaction.update(buildCleaningAdminPanel(await getCleaningAdminSnapshot(), 'preferences'));
 }
 
 async function handleViewScheduleButton(interaction) {
@@ -180,6 +185,11 @@ async function handleResetCleaningDrawButton(interaction) {
     content: `이번 주 추첨 결과를 초기화했어요. 삭제된 배정: ${removedCount}개`,
     flags: MessageFlags.Ephemeral,
   });
+}
+
+async function handleRefreshMemberAdminPanelButton(interaction) {
+  assertMemberAdminInteraction(interaction);
+  await interaction.update(buildMemberAdminPanel(await getCleaningAdminSnapshot()));
 }
 
 async function handleCleaningTestClosedMessageButton(interaction) {
@@ -237,6 +247,12 @@ function assertCleaningAdminInteraction(interaction) {
   }
 }
 
+function assertMemberAdminInteraction(interaction) {
+  if (!isAdmin(interaction)) {
+    throw new UserFacingError('인원관리 UI는 관리자만 사용할 수 있어요.');
+  }
+}
+
 function getViewFromMessage(interaction) {
   const content = interaction.message?.content || '';
   if (content.includes('청소관리 - 인원')) {
@@ -247,6 +263,10 @@ function getViewFromMessage(interaction) {
     return 'zones';
   }
 
+  if (content.includes('청소관리 - 선호구역')) {
+    return 'preferences';
+  }
+
   if (content.includes('청소관리 - 스케줄')) {
     return 'schedule';
   }
@@ -255,7 +275,7 @@ function getViewFromMessage(interaction) {
 }
 
 function getDynamicButtonHandler(customId) {
-  if (customId.startsWith(CLEANING_ADMIN_CUSTOM_IDS.editSelectedMemberPrefix)) {
+  if (customId.startsWith(MEMBER_ADMIN_CUSTOM_IDS.editSelectedMemberPrefix)) {
     return handleEditSelectedMemberButton;
   }
 

@@ -1,6 +1,7 @@
 import { cleaningAdminCommands, cleaningUserCommands } from './cleaningCommands.js';
 import { gatheringAdminCommands, gatheringUserCommands } from './gatheringCommands.js';
 import { lunchAdminCommands, lunchUserCommands } from './lunchCommands.js';
+import { memberAdminCommands } from './memberCommands.js';
 
 export const commandGroups = {
   user: [
@@ -9,6 +10,7 @@ export const commandGroups = {
     ...gatheringUserCommands,
   ],
   admin: [
+    ...memberAdminCommands,
     ...cleaningAdminCommands,
     ...lunchAdminCommands,
     ...gatheringAdminCommands,

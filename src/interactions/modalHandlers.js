@@ -23,6 +23,10 @@ import {
   CLEANING_ADMIN_CUSTOM_IDS,
 } from '../ui/cleaningAdminPanel.js';
 import {
+  buildMemberAdminPanel,
+  MEMBER_ADMIN_CUSTOM_IDS,
+} from '../ui/memberAdminPanel.js';
+import {
   buildGatheringAdminPanel,
   GATHERING_ADMIN_CUSTOM_IDS,
 } from '../ui/gatheringAdminPanel.js';
@@ -30,7 +34,7 @@ import { buildGatheringVoteMessage } from '../ui/gatheringVotePanel.js';
 import { consumeModalContext } from './modalContext.js';
 
 const modalHandlers = new Map([
-  [CLEANING_ADMIN_CUSTOM_IDS.memberModal, handleMemberModal],
+  [MEMBER_ADMIN_CUSTOM_IDS.memberModal, handleMemberModal],
   [CLEANING_ADMIN_CUSTOM_IDS.zoneModal, handleZoneModal],
   [CLEANING_ADMIN_CUSTOM_IDS.scheduleModal, handleScheduleModal],
   [GATHERING_ADMIN_CUSTOM_IDS.dateModal, handleGatheringDateModal],
@@ -46,7 +50,7 @@ export async function handleModalSubmitInteraction(interaction) {
 }
 
 async function handleMemberModal(interaction) {
-  assertCleaningAdminInteraction(interaction);
+  assertMemberAdminInteraction(interaction);
 
   await setCleaningMember({
     id: interaction.fields.getTextInputValue('id'),
@@ -55,7 +59,7 @@ async function handleMemberModal(interaction) {
     discordUserId: interaction.fields.getTextInputValue('discordUserId'),
   });
 
-  await interaction.reply(buildCleaningAdminPanel(await getCleaningAdminSnapshot(), 'members'));
+  await interaction.reply(buildMemberAdminPanel(await getCleaningAdminSnapshot()));
 }
 
 async function handleZoneModal(interaction) {
@@ -72,17 +76,17 @@ async function handleZoneModal(interaction) {
 }
 
 async function handleEditMemberModal(interaction) {
-  assertCleaningAdminInteraction(interaction);
+  assertMemberAdminInteraction(interaction);
 
-  const originalMemberId = resolveModalContextValue(interaction.customId, CLEANING_ADMIN_CUSTOM_IDS.editMemberModalPrefix);
-  await updateCleaningMember(originalMemberId, {
+  const originalMemberId = resolveModalContextValue(interaction.customId, MEMBER_ADMIN_CUSTOM_IDS.editMemberModalPrefix);
+  const result = await updateCleaningMember(originalMemberId, {
     id: interaction.fields.getTextInputValue('id'),
     name: interaction.fields.getTextInputValue('name'),
     active: parseBooleanInput(interaction.fields.getTextInputValue('active')),
     discordUserId: interaction.fields.getTextInputValue('discordUserId'),
   });
 
-  await interaction.reply(buildCleaningAdminPanel(await getCleaningAdminSnapshot(), 'members'));
+  await interaction.reply(buildMemberAdminPanel(await getCleaningAdminSnapshot(), { selectedMemberId: result.id }));
 }
 
 async function handleEditZoneModal(interaction) {
@@ -167,6 +171,12 @@ function assertCleaningAdminInteraction(interaction) {
   }
 }
 
+function assertMemberAdminInteraction(interaction) {
+  if (!isAdmin(interaction)) {
+    throw new UserFacingError('인원관리 UI는 관리자만 사용할 수 있어요.');
+  }
+}
+
 function assertGatheringAdminInteraction(interaction) {
   if (!isAdmin(interaction)) {
     throw new UserFacingError('모임 설정 UI는 관리자만 사용할 수 있어요.');
@@ -180,7 +190,7 @@ function getChannelName(interaction) {
 }
 
 function getDynamicModalHandler(customId) {
-  if (customId.startsWith(CLEANING_ADMIN_CUSTOM_IDS.editMemberModalPrefix)) {
+  if (customId.startsWith(MEMBER_ADMIN_CUSTOM_IDS.editMemberModalPrefix)) {
     return handleEditMemberModal;
   }
 

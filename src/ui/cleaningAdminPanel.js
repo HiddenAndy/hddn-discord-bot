@@ -10,23 +10,24 @@ import {
 } from 'discord.js';
 import { createModalContext } from '../interactions/modalContext.js';
 
+export const CLEANING_ADMIN_PREFERENCE_NONE_VALUE = '__none__';
+
 export const CLEANING_ADMIN_CUSTOM_IDS = {
   panel: 'cleaning-admin:panel',
   viewSummary: 'cleaning-admin:view-summary',
-  viewMembers: 'cleaning-admin:view-members',
   viewZones: 'cleaning-admin:view-zones',
+  viewPreferences: 'cleaning-admin:view-preferences',
   viewSchedule: 'cleaning-admin:view-schedule',
   addMember: 'cleaning-admin:add-member',
   addZone: 'cleaning-admin:add-zone',
   editSchedule: 'cleaning-admin:edit-schedule',
   resetDraw: 'cleaning-admin:reset-draw',
   refresh: 'cleaning-admin:refresh',
-  editMemberSelect: 'cleaning-admin:edit-member-select',
   editZoneSelect: 'cleaning-admin:edit-zone-select',
-  editSelectedMemberPrefix: 'cleaning-admin:edit-selected-member:',
   editSelectedZonePrefix: 'cleaning-admin:edit-selected-zone:',
-  memberModal: 'cleaning-admin:member-modal',
-  editMemberModalPrefix: 'cleaning-admin:edit-member-modal:',
+  preferenceMemberSelect: 'cleaning-admin:preference-member-select',
+  preferenceFirstSelect: 'cleaning-admin:preference-first-select',
+  preferenceSecondSelect: 'cleaning-admin:preference-second-select',
   zoneModal: 'cleaning-admin:zone-modal',
   editZoneModalPrefix: 'cleaning-admin:edit-zone-modal:',
   scheduleModal: 'cleaning-admin:schedule-modal',
@@ -36,12 +37,12 @@ export function buildCleaningAdminPanel(snapshot, view = 'summary', options = {}
   const activeMembers = snapshot.members.filter((member) => member.active);
   const activeZones = snapshot.zones.filter((zone) => zone.active);
 
-  if (view === 'members') {
-    return buildMembersPanel(snapshot, activeMembers, options);
-  }
-
   if (view === 'zones') {
     return buildZonesPanel(snapshot, activeZones, options);
+  }
+
+  if (view === 'preferences') {
+    return buildPreferencesPanel(snapshot, options);
   }
 
   if (view === 'schedule') {
@@ -87,30 +88,6 @@ function buildSchedulePanel(snapshot) {
   };
 }
 
-function buildMembersPanel(snapshot, activeMembers, options) {
-  const selectedMember = options.selectedMemberId
-    ? snapshot.members.find((member) => member.id === options.selectedMemberId)
-    : null;
-
-  return {
-    content: [
-      '**청소관리 - 인원**',
-      `활성 인원: ${activeMembers.length}/${snapshot.members.length}`,
-      selectedMember ? `선택됨: ${selectedMember.name} (${selectedMember.id})` : '선택된 인원: 없음',
-      '',
-      formatMemberList(snapshot.members),
-    ].join('\n'),
-    components: [
-      buildNavigationRow('members'),
-      buildMemberActionRow(),
-      buildMemberSelectRow(snapshot.members, selectedMember?.id),
-      buildSelectedMemberActionRow(selectedMember),
-      buildResetDrawRow(),
-    ].filter(Boolean),
-    flags: MessageFlags.Ephemeral,
-  };
-}
-
 function buildZonesPanel(snapshot, activeZones, options) {
   const selectedZone = options.selectedZoneName
     ? snapshot.zones.find((zone) => zone.zone === options.selectedZoneName)
@@ -135,18 +112,29 @@ function buildZonesPanel(snapshot, activeZones, options) {
   };
 }
 
-export function buildMemberModal(member = null) {
-  const contextToken = member ? createModalContext(member.id) : '';
+function buildPreferencesPanel(snapshot, options) {
+  const selectedMember = resolvePreferenceMember(snapshot, options.selectedMemberId);
+  const selectedPreference = getMemberPreference(snapshot, selectedMember?.id);
+  const activeCategories = getActiveCategoryNames(snapshot);
 
-  return new ModalBuilder()
-    .setCustomId(member ? `${CLEANING_ADMIN_CUSTOM_IDS.editMemberModalPrefix}${contextToken}` : CLEANING_ADMIN_CUSTOM_IDS.memberModal)
-    .setTitle(member ? '추첨 인원 수정' : '추첨 인원 추가')
-    .addComponents(
-      buildTextInputRow('id', '멤버 ID', 'Andy', true, member?.id),
-      buildTextInputRow('name', '표시 이름', 'Andy', true, member?.name),
-      buildTextInputRow('active', '활성 여부', 'Y 또는 N', true, member ? formatActiveInput(member.active) : 'Y'),
-      buildTextInputRow('discordUserId', '디스코드 유저 ID', '비워두면 변경 안 함', false, member?.discordUserId),
-    );
+  return {
+    content: [
+      '**청소관리 - 선호구역**',
+      selectedMember ? `선택됨: ${selectedMember.name} (${selectedMember.id})` : '선택된 인원: 없음',
+      `1순위: ${selectedPreference.categories[0] || '없음'}`,
+      `2순위: ${selectedPreference.categories[1] || '없음'}`,
+      '',
+      formatPreferenceList(snapshot),
+    ].join('\n'),
+    components: [
+      buildNavigationRow('preferences'),
+      buildPreferenceMemberSelectRow(snapshot.members, selectedMember?.id),
+      selectedMember ? buildPreferenceCategorySelectRow(CLEANING_ADMIN_CUSTOM_IDS.preferenceFirstSelect, '1순위 선택', activeCategories, selectedPreference.categories[0]) : null,
+      selectedMember ? buildPreferenceCategorySelectRow(CLEANING_ADMIN_CUSTOM_IDS.preferenceSecondSelect, '2순위 선택', activeCategories, selectedPreference.categories[1], selectedPreference.categories[0]) : null,
+      buildResetDrawRow(),
+    ].filter(Boolean),
+    flags: MessageFlags.Ephemeral,
+  };
 }
 
 export function buildZoneModal(zone = null) {
@@ -173,26 +161,6 @@ export function buildScheduleModal(schedule) {
     );
 }
 
-function buildMemberSelectRow(members, selectedMemberId = '') {
-  const options = members.slice(0, 25).map((member) => ({
-    label: `${member.active ? 'ON' : 'OFF'} ${member.name}`,
-    description: member.id,
-    value: member.id,
-    default: member.id === selectedMemberId,
-  }));
-
-  if (options.length === 0) {
-    return null;
-  }
-
-  return new ActionRowBuilder().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId(CLEANING_ADMIN_CUSTOM_IDS.editMemberSelect)
-      .setPlaceholder('수정할 인원 선택')
-      .addOptions(options),
-  );
-}
-
 function buildZoneSelectRow(zones, selectedZoneName = '') {
   const options = zones.slice(0, 25).map((zone) => ({
     label: `${zone.active ? 'ON' : 'OFF'} ${zone.zone}`.slice(0, 100),
@@ -213,6 +181,54 @@ function buildZoneSelectRow(zones, selectedZoneName = '') {
   );
 }
 
+function buildPreferenceMemberSelectRow(members, selectedMemberId = '') {
+  const options = members.slice(0, 25).map((member) => ({
+    label: `${member.active ? 'ON' : 'OFF'} ${member.name}`,
+    description: member.id,
+    value: member.id,
+    default: member.id === selectedMemberId,
+  }));
+
+  if (options.length === 0) {
+    return null;
+  }
+
+  return new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(CLEANING_ADMIN_CUSTOM_IDS.preferenceMemberSelect)
+      .setPlaceholder('선호구역을 수정할 인원 선택')
+      .addOptions(options),
+  );
+}
+
+function buildPreferenceCategorySelectRow(customId, placeholder, categories, selectedCategory = '', excludeCategory = '') {
+  const options = [
+    {
+      label: '없음',
+      value: CLEANING_ADMIN_PREFERENCE_NONE_VALUE,
+      default: !selectedCategory,
+    },
+  ].concat(categories
+    .filter((category) => category !== excludeCategory)
+    .slice(0, 25)
+    .map((category) => ({
+      label: category,
+      value: category,
+      default: category === selectedCategory,
+    })));
+
+  if (options.length === 0) {
+    return null;
+  }
+
+  return new ActionRowBuilder().addComponents(
+    new StringSelectMenuBuilder()
+      .setCustomId(customId)
+      .setPlaceholder(placeholder)
+      .addOptions(options),
+  );
+}
+
 function buildNavigationRow(currentView) {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
@@ -221,15 +237,15 @@ function buildNavigationRow(currentView) {
       .setStyle(currentView === 'summary' ? ButtonStyle.Primary : ButtonStyle.Secondary)
       .setDisabled(currentView === 'summary'),
     new ButtonBuilder()
-      .setCustomId(CLEANING_ADMIN_CUSTOM_IDS.viewMembers)
-      .setLabel('인원')
-      .setStyle(currentView === 'members' ? ButtonStyle.Primary : ButtonStyle.Secondary)
-      .setDisabled(currentView === 'members'),
-    new ButtonBuilder()
       .setCustomId(CLEANING_ADMIN_CUSTOM_IDS.viewZones)
       .setLabel('구역')
       .setStyle(currentView === 'zones' ? ButtonStyle.Primary : ButtonStyle.Secondary)
       .setDisabled(currentView === 'zones'),
+    new ButtonBuilder()
+      .setCustomId(CLEANING_ADMIN_CUSTOM_IDS.viewPreferences)
+      .setLabel('선호구역')
+      .setStyle(currentView === 'preferences' ? ButtonStyle.Primary : ButtonStyle.Secondary)
+      .setDisabled(currentView === 'preferences'),
     new ButtonBuilder()
       .setCustomId(CLEANING_ADMIN_CUSTOM_IDS.viewSchedule)
       .setLabel('스케줄')
@@ -251,35 +267,12 @@ function buildResetDrawRow() {
   );
 }
 
-function buildMemberActionRow() {
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(CLEANING_ADMIN_CUSTOM_IDS.addMember)
-      .setLabel('인원 추가')
-      .setStyle(ButtonStyle.Primary),
-  );
-}
-
 function buildZoneActionRow() {
   return new ActionRowBuilder().addComponents(
     new ButtonBuilder()
       .setCustomId(CLEANING_ADMIN_CUSTOM_IDS.addZone)
       .setLabel('구역 추가')
       .setStyle(ButtonStyle.Primary),
-  );
-}
-
-function buildSelectedMemberActionRow(member) {
-  if (!member) {
-    return null;
-  }
-
-  const contextToken = createModalContext(member.id);
-  return new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`${CLEANING_ADMIN_CUSTOM_IDS.editSelectedMemberPrefix}${contextToken}`)
-      .setLabel('선택한 인원 수정')
-      .setStyle(ButtonStyle.Secondary),
   );
 }
 
@@ -362,16 +355,45 @@ function formatZoneList(zones) {
   }), 20);
 }
 
+function formatPreferenceList(snapshot) {
+  const items = snapshot.members.map((member) => {
+    const preference = getMemberPreference(snapshot, member.id);
+    const categories = preference.categories.length > 0 ? preference.categories.join(' > ') : '없음';
+    return `${member.name}: ${categories}`;
+  });
+
+  return formatList(items, 20);
+}
+
+function getMemberPreference(snapshot, memberId) {
+  return snapshot.preferences.find((preference) => preference.memberId === memberId) || { memberId, categories: [] };
+}
+
+function getActiveCategoryNames(snapshot) {
+  return Array.from(new Set(snapshot.zones
+    .filter((zone) => zone.active)
+    .map((zone) => zone.category)
+    .filter(Boolean)));
+}
+
+function resolvePreferenceMember(snapshot, selectedMemberId) {
+  if (selectedMemberId) {
+    return snapshot.members.find((member) => member.id === selectedMemberId) || null;
+  }
+
+  return snapshot.members.find((member) => member.active) || snapshot.members[0] || null;
+}
+
 function formatScheduleText(schedule) {
   return `현재 예약: 매주 ${weekdayLabels[schedule.weekday]}요일 ${String(schedule.hour).padStart(2, '0')}:${String(schedule.minute).padStart(2, '0')}`;
 }
 
-function formatActiveInput(active) {
-  return active ? 'Y' : 'N';
-}
-
 function formatWeekdayInput(weekday) {
   return weekdayLabels[weekday] || String(weekday);
+}
+
+function formatActiveInput(active) {
+  return active ? 'Y' : 'N';
 }
 
 const weekdayLabels = ['일', '월', '화', '수', '목', '금', '토'];
