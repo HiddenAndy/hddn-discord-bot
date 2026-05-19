@@ -18,3 +18,7 @@ export function consumeModalContext(token) {
   modalContexts.delete(token);
   return value ?? null;
 }
+
+export function readModalContext(token) {
+  return modalContexts.get(token) ?? null;
+}

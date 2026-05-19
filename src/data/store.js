@@ -1,9 +1,15 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import Database from 'better-sqlite3';
 import { defaultCleaningZones, defaultMembers, defaultPreferences } from './defaultData.js';
 import { fromProjectRoot } from '../utils/paths.js';
 
-const storePath = fromProjectRoot('data/store.json');
+const storePath = fromProjectRoot('data/store.sqlite');
+const seedStorePath = fromProjectRoot('data/store.json');
+const stateKey = 'store';
+
+let db = null;
+let updateQueue = Promise.resolve();
 
 function createInitialStore() {
   return {
@@ -24,42 +30,92 @@ function createInitialStore() {
 }
 
 export async function readStore() {
-  try {
-    const raw = await readFile(storePath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return {
-      ...createInitialStore(),
-      ...parsed,
-      settings: {
-        ...createInitialStore().settings,
-        ...(parsed.settings || {}),
-        cleaningSchedule: {
-          ...createInitialStore().settings.cleaningSchedule,
-          ...(parsed.settings?.cleaningSchedule || {}),
-        },
-      },
-      gatheringsByChannel: parsed.gatheringsByChannel || {},
-      cleaningDrawSessions: parsed.cleaningDrawSessions || {},
-    };
-  } catch (error) {
-    if (error.code !== 'ENOENT') {
-      throw error;
-    }
-
-    const initialStore = createInitialStore();
-    await writeStore(initialStore);
-    return initialStore;
-  }
+  return readStoreSync();
 }
 
 export async function writeStore(store) {
-  await mkdir(path.dirname(storePath), { recursive: true });
-  await writeFile(storePath, `${JSON.stringify(store, null, 2)}\n`, 'utf8');
+  writeStoreSync(store);
 }
 
 export async function updateStore(updater) {
-  const store = await readStore();
-  const result = await updater(store);
-  await writeStore(store);
-  return result;
+  const run = updateQueue.then(async () => {
+    const store = readStoreSync();
+    const result = await updater(store);
+    writeStoreSync(store);
+    return result;
+  });
+  updateQueue = run.catch(() => {});
+  return run;
+}
+
+function readStoreSync() {
+  const raw = getDb()
+    .prepare('SELECT value FROM app_state WHERE key = ?')
+    .get(stateKey)?.value;
+
+  if (!raw) {
+    const initialStore = readSeedStore();
+    writeStoreSync(initialStore);
+    return initialStore;
+  }
+
+  return normalizeStore(JSON.parse(raw));
+}
+
+function writeStoreSync(store) {
+  const normalized = normalizeStore(store);
+  getDb()
+    .prepare(`
+      INSERT INTO app_state (key, value, updated_at)
+      VALUES (?, ?, datetime('now'))
+      ON CONFLICT(key) DO UPDATE SET
+        value = excluded.value,
+        updated_at = excluded.updated_at
+    `)
+    .run(stateKey, JSON.stringify(normalized));
+}
+
+function getDb() {
+  if (db) {
+    return db;
+  }
+
+  mkdirSync(path.dirname(storePath), { recursive: true });
+  db = new Database(storePath);
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS app_state (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+  return db;
+}
+
+function readSeedStore() {
+  if (!existsSync(seedStorePath)) {
+    return createInitialStore();
+  }
+
+  return normalizeStore(JSON.parse(readFileSync(seedStorePath, 'utf8')));
+}
+
+function normalizeStore(parsed) {
+  const initialStore = createInitialStore();
+  return {
+    ...initialStore,
+    ...parsed,
+    settings: {
+      ...initialStore.settings,
+      ...(parsed.settings || {}),
+      cleaningSchedule: {
+        ...initialStore.settings.cleaningSchedule,
+        ...(parsed.settings?.cleaningSchedule || {}),
+      },
+    },
+    gatheringsByChannel: parsed.gatheringsByChannel || {},
+    cleaningDrawSessions: parsed.cleaningDrawSessions || {},
+  };
 }

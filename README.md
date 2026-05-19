@@ -13,12 +13,14 @@ npm run commands:register // 명령어 추가, 변경 시
 npm start
 ```
 
+첫 실행 시 `src/data/store.json`의 현재 데이터를 초기값으로 사용해 `src/data/store.sqlite`를 만듭니다. 이후 운영 데이터는 SQLite 파일에 저장됩니다.
+
 ## 구조
 
 - `src/index.js`: 디스코드 클라이언트 생성과 인터랙션 라우팅
 - `src/commands/`: 슬래시 명령어 정의와 실행 핸들러
 - `src/config/`: 환경 변수와 런타임 설정
-- `src/data/`: 초기 데이터와 JSON 저장소
+- `src/data/`: 초기 데이터와 SQLite 저장소
 - `src/services/`: 저장소를 변경하는 업무 로직
 - `src/interactions/`: 버튼, 선택 메뉴, 모달 인터랙션 핸들러
 - `src/schedules/`: 주간 자동 실행 작업

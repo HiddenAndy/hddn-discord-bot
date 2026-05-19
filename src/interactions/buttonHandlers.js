@@ -1,26 +1,36 @@
-import { AttachmentBuilder, MessageFlags } from 'discord.js';
+import { AttachmentBuilder, EmbedBuilder, MessageFlags } from 'discord.js';
 import { config } from '../config/env.js';
 import {
   buildCurrentDrawClosedMessage,
+  buildResultSummary,
   CLEANING_DRAW_BUTTON_ID,
   createCleaningDrawSession,
   drawCleaningZoneForDiscordUser,
   getReasonLabel,
+  getThisWeekAssignments,
+  getThisWeekExemptMembers,
   resetCurrentCleaningDraw,
   resetOldCleaningAssignments,
+  resolveAssignmentImagePath,
   UserFacingError,
 } from '../services/cleaningService.js';
 import {
+  getCleaningMember,
   getCleaningAdminSnapshot,
+  getCleaningZone,
 } from '../services/cleaningAdminService.js';
 import {
   assertGatheringChannel,
   clearGatheringVenues,
   getGatheringSnapshot,
+  getGatheringSummary,
+  getGatheringVenue,
   joinGathering,
   leaveGathering,
+  resetGatheringVoteStatus,
   resetGathering,
 } from '../services/gatheringService.js';
+import { readStore } from '../data/store.js';
 import { isAdmin } from '../utils/permissions.js';
 import {
   buildCleaningAdminPanel,
@@ -33,15 +43,18 @@ import { buildCleaningPanelMessage } from '../ui/cleaningPanel.js';
 import {
   buildGatheringAdminPanel,
   buildGatheringDateModal,
+  buildGatheringEditVenueModal,
   buildGatheringVenueModal,
   buildGatheringVoteModal,
   GATHERING_ADMIN_CUSTOM_IDS,
 } from '../ui/gatheringAdminPanel.js';
+import { buildGatheringVoteMessage } from '../ui/gatheringVotePanel.js';
 import {
   buildGatheringResultPanel,
   GATHERING_RESULT_CUSTOM_IDS,
 } from '../ui/gatheringResultPanel.js';
 import { TEST_PANEL_CUSTOM_IDS } from '../ui/testPanels.js';
+import { readModalContext } from './modalContext.js';
 
 const buttonHandlers = new Map([
   [CLEANING_DRAW_BUTTON_ID, handleCleaningDrawButton],
@@ -58,19 +71,24 @@ const buttonHandlers = new Map([
   [GATHERING_ADMIN_CUSTOM_IDS.addVenue, handleGatheringVenueButton],
   [GATHERING_ADMIN_CUSTOM_IDS.clearVenues, handleGatheringClearVenuesButton],
   [GATHERING_ADMIN_CUSTOM_IDS.startVote, handleGatheringVoteButton],
+  [GATHERING_ADMIN_CUSTOM_IDS.resetVoteStatus, handleGatheringResetVoteStatusButton],
   [GATHERING_ADMIN_CUSTOM_IDS.reset, handleGatheringResetButton],
   [GATHERING_ADMIN_CUSTOM_IDS.refresh, handleGatheringRefreshButton],
   [GATHERING_RESULT_CUSTOM_IDS.join, handleGatheringResultJoinButton],
   [GATHERING_RESULT_CUSTOM_IDS.leave, handleGatheringResultLeaveButton],
   [TEST_PANEL_CUSTOM_IDS.gatheringResultPrivate, handleGatheringTestResultPrivateButton],
   [TEST_PANEL_CUSTOM_IDS.gatheringResultPublic, handleGatheringTestResultPublicButton],
+  [TEST_PANEL_CUSTOM_IDS.gatheringVoteMessage, handleGatheringTestVoteMessageButton],
+  [TEST_PANEL_CUSTOM_IDS.gatheringSummary, handleGatheringTestSummaryButton],
   [TEST_PANEL_CUSTOM_IDS.cleaningDrawPanel, handleCleaningTestDrawPanelButton],
+  [TEST_PANEL_CUSTOM_IDS.cleaningDrawSelf, handleCleaningTestDrawSelfButton],
+  [TEST_PANEL_CUSTOM_IDS.cleaningResultSummary, handleCleaningTestResultSummaryButton],
   [TEST_PANEL_CUSTOM_IDS.cleaningClosedMessage, handleCleaningTestClosedMessageButton],
   [TEST_PANEL_CUSTOM_IDS.lunchRecommend, handleLunchTestRecommendButton],
 ]);
 
 export async function handleButtonInteraction(interaction) {
-  const handler = buttonHandlers.get(interaction.customId);
+  const handler = buttonHandlers.get(interaction.customId) || getDynamicButtonHandler(interaction.customId);
   if (handler) {
     await handler(interaction);
   }
@@ -82,13 +100,13 @@ async function handleCleaningDrawButton(interaction) {
   }
 
   const result = await drawCleaningZoneForDiscordUser(interaction.user, interaction.member);
-  const reasonLabel = getReasonLabel(result.assignment.reason);
-  const publicMessage = `${result.member.name}님이 ${result.assignment.zone} (${reasonLabel}) 뽑았습니다. 남은 구역: ${result.remainingCount}개`;
-  const privateMessage = `${result.member.name}님, 이번 주 청소 구역은 "${result.assignment.zone}"입니다.\n배정 방식: ${reasonLabel}`;
-
   const files = result.imagePath ? [new AttachmentBuilder(result.imagePath)] : [];
-  await interaction.reply({ content: privateMessage, files, flags: MessageFlags.Ephemeral });
-  await interaction.channel?.send(publicMessage);
+  await interaction.reply({
+    embeds: [buildCleaningAssignmentEmbed(result)],
+    files,
+    flags: MessageFlags.Ephemeral,
+  });
+  await interaction.channel?.send({ embeds: [buildCleaningAnnouncementEmbed(result)] });
 }
 
 async function handleAddMemberButton(interaction) {
@@ -99,6 +117,28 @@ async function handleAddMemberButton(interaction) {
 async function handleAddZoneButton(interaction) {
   assertCleaningAdminInteraction(interaction);
   await interaction.showModal(buildZoneModal());
+}
+
+async function handleEditSelectedMemberButton(interaction) {
+  assertCleaningAdminInteraction(interaction);
+  const memberId = resolveButtonContextValue(interaction.customId, CLEANING_ADMIN_CUSTOM_IDS.editSelectedMemberPrefix);
+  const member = await getCleaningMember(memberId);
+  if (!member) {
+    throw new UserFacingError(`수정할 멤버를 찾을 수 없어요: ${memberId}`);
+  }
+
+  await interaction.showModal(buildMemberModal(member));
+}
+
+async function handleEditSelectedZoneButton(interaction) {
+  assertCleaningAdminInteraction(interaction);
+  const zoneName = resolveButtonContextValue(interaction.customId, CLEANING_ADMIN_CUSTOM_IDS.editSelectedZonePrefix);
+  const zone = await getCleaningZone(zoneName);
+  if (!zone) {
+    throw new UserFacingError(`수정할 청소 구역을 찾을 수 없어요: ${zoneName}`);
+  }
+
+  await interaction.showModal(buildZoneModal(zone));
 }
 
 async function handleEditScheduleButton(interaction) {
@@ -144,9 +184,9 @@ async function handleResetCleaningDrawButton(interaction) {
 
 async function handleCleaningTestClosedMessageButton(interaction) {
   assertCleaningAdminInteraction(interaction);
-  await interaction.update({
+  await interaction.reply({
     content: await buildCurrentDrawClosedMessage(),
-    components: [],
+    flags: MessageFlags.Ephemeral,
   });
 }
 
@@ -155,9 +195,35 @@ async function handleCleaningTestDrawPanelButton(interaction) {
   await resetOldCleaningAssignments();
   const drawSession = await createCleaningDrawSession();
   await interaction.channel?.send(buildCleaningPanelMessage(drawSession));
-  await interaction.update({
-    content: '청소 추첨 패널을 현재 채널에 올렸어요.',
-    components: [],
+  await interaction.reply({
+    content: '청소 추첨 패널을 현재 채널에 게시했습니다.',
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+async function handleCleaningTestDrawSelfButton(interaction) {
+  assertCleaningAdminInteraction(interaction);
+  const result = await drawCleaningZoneForDiscordUser(interaction.user, interaction.member);
+  const files = result.imagePath ? [new AttachmentBuilder(result.imagePath)] : [];
+  await interaction.reply({
+    embeds: [buildCleaningAssignmentEmbed(result, '테스트 추첨 결과')],
+    files,
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+async function handleCleaningTestResultSummaryButton(interaction) {
+  assertCleaningAdminInteraction(interaction);
+  const store = await readStore();
+  const assignments = getThisWeekAssignments(store);
+  const exemptMembers = await getThisWeekExemptMembers(store);
+  const myAssignment = assignments.find((assignment) => assignment.discordUserId === interaction.user.id);
+  const imagePath = await resolveAssignmentImagePath(myAssignment, store);
+  const files = imagePath ? [new AttachmentBuilder(imagePath)] : [];
+  await interaction.reply({
+    embeds: [buildCleaningResultSummaryEmbed(assignments, exemptMembers)],
+    files,
+    flags: MessageFlags.Ephemeral,
   });
 }
 
@@ -188,6 +254,27 @@ function getViewFromMessage(interaction) {
   return 'summary';
 }
 
+function getDynamicButtonHandler(customId) {
+  if (customId.startsWith(CLEANING_ADMIN_CUSTOM_IDS.editSelectedMemberPrefix)) {
+    return handleEditSelectedMemberButton;
+  }
+
+  if (customId.startsWith(CLEANING_ADMIN_CUSTOM_IDS.editSelectedZonePrefix)) {
+    return handleEditSelectedZoneButton;
+  }
+
+  if (customId.startsWith(GATHERING_ADMIN_CUSTOM_IDS.editSelectedVenuePrefix)) {
+    return handleGatheringEditSelectedVenueButton;
+  }
+
+  return null;
+}
+
+function resolveButtonContextValue(customId, prefix) {
+  const token = customId.replace(prefix, '');
+  return readModalContext(token) || decodeURIComponent(token);
+}
+
 async function handleGatheringDateButton(interaction) {
   assertGatheringAdminInteraction(interaction);
   await interaction.showModal(buildGatheringDateModal(await getGatheringSnapshot(interaction.channelId)));
@@ -196,6 +283,17 @@ async function handleGatheringDateButton(interaction) {
 async function handleGatheringVenueButton(interaction) {
   assertGatheringAdminInteraction(interaction);
   await interaction.showModal(buildGatheringVenueModal());
+}
+
+async function handleGatheringEditSelectedVenueButton(interaction) {
+  assertGatheringAdminInteraction(interaction);
+  const venueName = resolveButtonContextValue(interaction.customId, GATHERING_ADMIN_CUSTOM_IDS.editSelectedVenuePrefix);
+  const venue = await getGatheringVenue(interaction.channelId, venueName);
+  if (!venue) {
+    throw new UserFacingError(`수정할 후보를 찾을 수 없어요: ${venueName}`);
+  }
+
+  await interaction.showModal(buildGatheringEditVenueModal(venue));
 }
 
 async function handleGatheringClearVenuesButton(interaction) {
@@ -207,6 +305,16 @@ async function handleGatheringClearVenuesButton(interaction) {
 async function handleGatheringVoteButton(interaction) {
   assertGatheringAdminInteraction(interaction);
   await interaction.showModal(buildGatheringVoteModal(await getGatheringSnapshot(interaction.channelId)));
+}
+
+async function handleGatheringResetVoteStatusButton(interaction) {
+  assertGatheringAdminInteraction(interaction);
+  const result = await resetGatheringVoteStatus(interaction.channelId);
+  await interaction.update(buildGatheringAdminPanel(await getGatheringSnapshot(interaction.channelId), getChannelName(interaction)));
+  await interaction.followUp({
+    content: `투표 현황을 초기화했습니다. 삭제된 참여자: ${result.participantCount}명, 삭제된 투표: ${result.voteCount}표`,
+    flags: MessageFlags.Ephemeral,
+  });
 }
 
 async function handleGatheringResetButton(interaction) {
@@ -247,10 +355,10 @@ async function handleGatheringResultLeaveButton(interaction) {
 
 async function handleGatheringTestResultPrivateButton(interaction) {
   assertGatheringAdminInteraction(interaction);
-  await interaction.update(asUpdatePayload(buildGatheringResultPanel(
+  await interaction.reply(buildGatheringResultPanel(
     await getGatheringSnapshot(interaction.channelId),
     getChannelName(interaction),
-  )));
+  ));
 }
 
 async function handleGatheringTestResultPublicButton(interaction) {
@@ -260,9 +368,38 @@ async function handleGatheringTestResultPublicButton(interaction) {
     getChannelName(interaction),
     { ephemeral: false },
   ));
-  await interaction.update({
-    content: '모임 투표 결과를 현재 채널에 공지했어요.',
-    components: [],
+  await interaction.reply({
+    content: '모임 투표 결과를 현재 채널에 공지했습니다.',
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+async function handleGatheringTestVoteMessageButton(interaction) {
+  assertGatheringAdminInteraction(interaction);
+  const gathering = await getGatheringSnapshot(interaction.channelId);
+  if (gathering.venueOptions.length === 0) {
+    throw new UserFacingError('투표 메시지를 올리려면 먼저 `/모임설정`에서 장소 후보를 1개 이상 추가해주세요.');
+  }
+
+  await interaction.channel?.send(buildGatheringVoteMessage(
+    gathering,
+    getChannelName(interaction),
+  ));
+  await interaction.reply({
+    content: '모임 투표 메시지를 현재 채널에 게시했습니다.',
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+async function handleGatheringTestSummaryButton(interaction) {
+  assertGatheringAdminInteraction(interaction);
+  const summary = await getGatheringSummary(interaction.channelId, getChannelName(interaction));
+  await interaction.reply({
+    embeds: [new EmbedBuilder()
+      .setColor(0x27ae60)
+      .setTitle('모임 현황')
+      .setDescription(stripSummaryTitle(summary))],
+    flags: MessageFlags.Ephemeral,
   });
 }
 
@@ -271,9 +408,9 @@ async function handleLunchTestRecommendButton(interaction) {
     throw new UserFacingError('점심테스트 UI는 관리자만 사용할 수 있어요.');
   }
 
-  await interaction.update({
-    content: '점심 메뉴 추천은 다음 단계에서 붙이면 딱 좋겠어요.',
-    components: [],
+  await interaction.reply({
+    content: '점심 추천 기능은 아직 준비 중입니다.',
+    flags: MessageFlags.Ephemeral,
   });
 }
 
@@ -296,4 +433,42 @@ function isEphemeralMessage(interaction) {
 function asUpdatePayload(payload) {
   const { flags, ...rest } = payload;
   return rest;
+}
+
+function buildCleaningAssignmentEmbed(result, title = '이번 주 청소 구역') {
+  const reasonLabel = getReasonLabel(result.assignment.reason);
+  return new EmbedBuilder()
+    .setColor(0x2f80ed)
+    .setTitle(title)
+    .setDescription(`${result.member.name}님의 배정이 완료되었습니다.`)
+    .addFields(
+      { name: '배정 구역', value: result.assignment.zone },
+      { name: '카테고리', value: result.assignment.category, inline: true },
+      { name: '배정 방식', value: reasonLabel, inline: true },
+      { name: '남은 구역', value: `${result.remainingCount}개`, inline: true },
+    );
+}
+
+function buildCleaningAnnouncementEmbed(result) {
+  const reasonLabel = getReasonLabel(result.assignment.reason);
+  return new EmbedBuilder()
+    .setColor(0x56ccf2)
+    .setTitle('청소 구역 배정 완료')
+    .setDescription(`${result.member.name}님이 구역을 뽑았습니다.`)
+    .addFields(
+      { name: '배정 구역', value: result.assignment.zone },
+      { name: '배정 방식', value: reasonLabel, inline: true },
+      { name: '남은 구역', value: `${result.remainingCount}개`, inline: true },
+    );
+}
+
+function buildCleaningResultSummaryEmbed(assignments, exemptMembers) {
+  return new EmbedBuilder()
+    .setColor(0x2f80ed)
+    .setTitle('이번 주 청소 결과')
+    .setDescription(buildResultSummary(assignments, exemptMembers));
+}
+
+function stripSummaryTitle(summary) {
+  return summary.replace(/^.+모임 현황\n\n/, '');
 }

@@ -1,3 +1,5 @@
 node_modules/
 .env
 data/store.json
+src/data/store.sqlite
+src/data/store.sqlite-*

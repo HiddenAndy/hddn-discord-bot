@@ -16,8 +16,10 @@ export const GATHERING_ADMIN_CUSTOM_IDS = {
   editDate: 'gathering-admin:edit-date',
   addVenue: 'gathering-admin:add-venue',
   editVenueSelect: 'gathering-admin:edit-venue-select',
+  editSelectedVenuePrefix: 'gathering-admin:edit-selected-venue:',
   clearVenues: 'gathering-admin:clear-venues',
   startVote: 'gathering-admin:start-vote',
+  resetVoteStatus: 'gathering-admin:reset-vote-status',
   reset: 'gathering-admin:reset',
   refresh: 'gathering-admin:refresh',
   dateModal: 'gathering-admin:date-modal',
@@ -26,7 +28,10 @@ export const GATHERING_ADMIN_CUSTOM_IDS = {
   voteModal: 'gathering-admin:vote-modal',
 };
 
-export function buildGatheringAdminPanel(gathering, channelName) {
+export function buildGatheringAdminPanel(gathering, channelName, options = {}) {
+  const selectedVenue = options.selectedVenueName
+    ? gathering.venueOptions.find((venue) => venue.name === options.selectedVenueName)
+    : null;
   const components = [
     new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -52,11 +57,16 @@ export function buildGatheringAdminPanel(gathering, channelName) {
         .setLabel('새로고침')
         .setStyle(ButtonStyle.Secondary),
       new ButtonBuilder()
+        .setCustomId(GATHERING_ADMIN_CUSTOM_IDS.resetVoteStatus)
+        .setLabel('투표 현황 리셋')
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
         .setCustomId(GATHERING_ADMIN_CUSTOM_IDS.reset)
         .setLabel('초기화')
         .setStyle(ButtonStyle.Danger),
     ),
-    buildVenueEditSelectRow(gathering),
+    buildVenueEditSelectRow(gathering, selectedVenue?.name),
+    buildSelectedVenueActionRow(selectedVenue),
   ].filter(Boolean);
 
   return {
@@ -69,6 +79,7 @@ export function buildGatheringAdminPanel(gathering, channelName) {
       '',
       '**모임 장소 후보**',
       formatVenueList(gathering),
+      selectedVenue ? `\n선택됨: ${selectedVenue.name}` : '\n선택된 후보: 없음',
       '',
       '**참여/투표**',
       `참여자: ${gathering.participants.length}명`,
@@ -136,7 +147,7 @@ function buildTextInputRow(customId, label, placeholder, required, value = '', s
   return new ActionRowBuilder().addComponents(input);
 }
 
-function buildVenueEditSelectRow(gathering) {
+function buildVenueEditSelectRow(gathering, selectedVenueName = '') {
   if (gathering.venueOptions.length === 0) {
     return null;
   }
@@ -149,6 +160,21 @@ function buildVenueEditSelectRow(gathering) {
         label: venue.name.slice(0, 100),
         description: venue.description ? venue.description.slice(0, 100) : undefined,
         value: venue.name,
+        default: venue.name === selectedVenueName,
       }))),
+  );
+}
+
+function buildSelectedVenueActionRow(venue) {
+  if (!venue) {
+    return null;
+  }
+
+  const contextToken = createModalContext(venue.name);
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`${GATHERING_ADMIN_CUSTOM_IDS.editSelectedVenuePrefix}${contextToken}`)
+      .setLabel('선택한 후보 수정')
+      .setStyle(ButtonStyle.Secondary),
   );
 }

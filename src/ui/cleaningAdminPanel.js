@@ -23,6 +23,8 @@ export const CLEANING_ADMIN_CUSTOM_IDS = {
   refresh: 'cleaning-admin:refresh',
   editMemberSelect: 'cleaning-admin:edit-member-select',
   editZoneSelect: 'cleaning-admin:edit-zone-select',
+  editSelectedMemberPrefix: 'cleaning-admin:edit-selected-member:',
+  editSelectedZonePrefix: 'cleaning-admin:edit-selected-zone:',
   memberModal: 'cleaning-admin:member-modal',
   editMemberModalPrefix: 'cleaning-admin:edit-member-modal:',
   zoneModal: 'cleaning-admin:zone-modal',
@@ -30,16 +32,16 @@ export const CLEANING_ADMIN_CUSTOM_IDS = {
   scheduleModal: 'cleaning-admin:schedule-modal',
 };
 
-export function buildCleaningAdminPanel(snapshot, view = 'summary') {
+export function buildCleaningAdminPanel(snapshot, view = 'summary', options = {}) {
   const activeMembers = snapshot.members.filter((member) => member.active);
   const activeZones = snapshot.zones.filter((zone) => zone.active);
 
   if (view === 'members') {
-    return buildMembersPanel(snapshot, activeMembers);
+    return buildMembersPanel(snapshot, activeMembers, options);
   }
 
   if (view === 'zones') {
-    return buildZonesPanel(snapshot, activeZones);
+    return buildZonesPanel(snapshot, activeZones, options);
   }
 
   if (view === 'schedule') {
@@ -85,36 +87,48 @@ function buildSchedulePanel(snapshot) {
   };
 }
 
-function buildMembersPanel(snapshot, activeMembers) {
+function buildMembersPanel(snapshot, activeMembers, options) {
+  const selectedMember = options.selectedMemberId
+    ? snapshot.members.find((member) => member.id === options.selectedMemberId)
+    : null;
+
   return {
     content: [
       '**청소관리 - 인원**',
       `활성 인원: ${activeMembers.length}/${snapshot.members.length}`,
+      selectedMember ? `선택됨: ${selectedMember.name} (${selectedMember.id})` : '선택된 인원: 없음',
       '',
       formatMemberList(snapshot.members),
     ].join('\n'),
     components: [
       buildNavigationRow('members'),
       buildMemberActionRow(),
-      buildMemberSelectRow(snapshot.members),
+      buildMemberSelectRow(snapshot.members, selectedMember?.id),
+      buildSelectedMemberActionRow(selectedMember),
       buildResetDrawRow(),
     ].filter(Boolean),
     flags: MessageFlags.Ephemeral,
   };
 }
 
-function buildZonesPanel(snapshot, activeZones) {
+function buildZonesPanel(snapshot, activeZones, options) {
+  const selectedZone = options.selectedZoneName
+    ? snapshot.zones.find((zone) => zone.zone === options.selectedZoneName)
+    : null;
+
   return {
     content: [
       '**청소관리 - 구역**',
       `활성 구역: ${activeZones.length}/${snapshot.zones.length}`,
+      selectedZone ? `선택됨: ${selectedZone.category} - ${selectedZone.zone}` : '선택된 구역: 없음',
       '',
       formatZoneList(snapshot.zones),
     ].join('\n'),
     components: [
       buildNavigationRow('zones'),
       buildZoneActionRow(),
-      buildZoneSelectRow(snapshot.zones),
+      buildZoneSelectRow(snapshot.zones, selectedZone?.zone),
+      buildSelectedZoneActionRow(selectedZone),
       buildResetDrawRow(),
     ].filter(Boolean),
     flags: MessageFlags.Ephemeral,
@@ -159,11 +173,12 @@ export function buildScheduleModal(schedule) {
     );
 }
 
-function buildMemberSelectRow(members) {
+function buildMemberSelectRow(members, selectedMemberId = '') {
   const options = members.slice(0, 25).map((member) => ({
     label: `${member.active ? 'ON' : 'OFF'} ${member.name}`,
     description: member.id,
     value: member.id,
+    default: member.id === selectedMemberId,
   }));
 
   if (options.length === 0) {
@@ -178,11 +193,12 @@ function buildMemberSelectRow(members) {
   );
 }
 
-function buildZoneSelectRow(zones) {
+function buildZoneSelectRow(zones, selectedZoneName = '') {
   const options = zones.slice(0, 25).map((zone) => ({
     label: `${zone.active ? 'ON' : 'OFF'} ${zone.zone}`.slice(0, 100),
     description: zone.category.slice(0, 100),
     value: zone.zone,
+    default: zone.zone === selectedZoneName,
   }));
 
   if (options.length === 0) {
@@ -250,6 +266,34 @@ function buildZoneActionRow() {
       .setCustomId(CLEANING_ADMIN_CUSTOM_IDS.addZone)
       .setLabel('구역 추가')
       .setStyle(ButtonStyle.Primary),
+  );
+}
+
+function buildSelectedMemberActionRow(member) {
+  if (!member) {
+    return null;
+  }
+
+  const contextToken = createModalContext(member.id);
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`${CLEANING_ADMIN_CUSTOM_IDS.editSelectedMemberPrefix}${contextToken}`)
+      .setLabel('선택한 인원 수정')
+      .setStyle(ButtonStyle.Secondary),
+  );
+}
+
+function buildSelectedZoneActionRow(zone) {
+  if (!zone) {
+    return null;
+  }
+
+  const contextToken = createModalContext(zone.zone);
+  return new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`${CLEANING_ADMIN_CUSTOM_IDS.editSelectedZonePrefix}${contextToken}`)
+      .setLabel('선택한 구역 수정')
+      .setStyle(ButtonStyle.Secondary),
   );
 }
 

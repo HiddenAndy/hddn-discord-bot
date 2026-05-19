@@ -1,23 +1,24 @@
 import { config } from '../config/env.js';
-import { MessageFlags } from 'discord.js';
+import { EmbedBuilder, MessageFlags } from 'discord.js';
 import { UserFacingError } from '../services/cleaningService.js';
 import {
   getCleaningZone,
   getCleaningMember,
+  getCleaningAdminSnapshot,
 } from '../services/cleaningAdminService.js';
 import {
   assertGatheringChannel,
+  getGatheringSnapshot,
   getGatheringVenue,
   voteGatheringVenue,
 } from '../services/gatheringService.js';
 import { isAdmin } from '../utils/permissions.js';
 import {
-  buildMemberModal,
-  buildZoneModal,
+  buildCleaningAdminPanel,
   CLEANING_ADMIN_CUSTOM_IDS,
 } from '../ui/cleaningAdminPanel.js';
 import {
-  buildGatheringEditVenueModal,
+  buildGatheringAdminPanel,
   GATHERING_ADMIN_CUSTOM_IDS,
 } from '../ui/gatheringAdminPanel.js';
 import { GATHERING_VOTE_SELECT_ID } from '../ui/gatheringVotePanel.js';
@@ -44,7 +45,11 @@ async function handleEditMemberSelect(interaction) {
     throw new UserFacingError(`수정할 멤버를 찾을 수 없어요: ${interaction.values[0]}`);
   }
 
-  await interaction.showModal(buildMemberModal(member));
+  await interaction.update(buildCleaningAdminPanel(
+    await getCleaningAdminSnapshot(),
+    'members',
+    { selectedMemberId: member.id },
+  ));
 }
 
 async function handleEditZoneSelect(interaction) {
@@ -55,7 +60,11 @@ async function handleEditZoneSelect(interaction) {
     throw new UserFacingError(`수정할 청소 구역을 찾을 수 없어요: ${interaction.values[0]}`);
   }
 
-  await interaction.showModal(buildZoneModal(zone));
+  await interaction.update(buildCleaningAdminPanel(
+    await getCleaningAdminSnapshot(),
+    'zones',
+    { selectedZoneName: zone.zone },
+  ));
 }
 
 async function handleGatheringVote(interaction) {
@@ -64,7 +73,16 @@ async function handleGatheringVote(interaction) {
     discordUserId: interaction.user.id,
     name,
   }, interaction.values[0]);
-  await interaction.reply({ content: `${interaction.values[0]}에 투표했어요. 모임 참여도 함께 신청됐어요.`, flags: MessageFlags.Ephemeral });
+  await interaction.reply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x27ae60)
+        .setTitle('투표 완료')
+        .setDescription('모임 참여도 함께 신청되었습니다.')
+        .addFields({ name: '선택한 장소', value: interaction.values[0] }),
+    ],
+    flags: MessageFlags.Ephemeral,
+  });
 }
 
 async function handleGatheringEditVenueSelect(interaction) {
@@ -75,7 +93,11 @@ async function handleGatheringEditVenueSelect(interaction) {
     throw new UserFacingError(`수정할 후보를 찾을 수 없어요: ${interaction.values[0]}`);
   }
 
-  await interaction.showModal(buildGatheringEditVenueModal(venue));
+  await interaction.update(buildGatheringAdminPanel(
+    await getGatheringSnapshot(interaction.channelId),
+    getChannelName(interaction),
+    { selectedVenueName: venue.name },
+  ));
 }
 
 function assertCleaningAdminInteraction(interaction) {
@@ -94,4 +116,8 @@ function assertGatheringAdminInteraction(interaction) {
   }
 
   assertGatheringChannel(interaction.channelId);
+}
+
+function getChannelName(interaction) {
+  return interaction.channel?.name || interaction.channelId;
 }

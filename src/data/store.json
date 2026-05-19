@@ -163,30 +163,7 @@
       ]
     }
   ],
-  "assignments": [
-    {
-      "assignmentDate": "2026-05-18",
-      "memberId": "Andy",
-      "memberName": "Andy",
-      "discordUserId": "1503245272871079976",
-      "zone": "청소기 B(안)",
-      "category": "청소기",
-      "reason": "random",
-      "createdAt": "26. 5. 17. 오후 5:24:55",
-      "imagePath": "assets/cleaning-zones/vacuum_b.png"
-    },
-    {
-      "assignmentDate": "2026-05-18",
-      "memberId": "Jpark",
-      "memberName": "Jpark",
-      "discordUserId": "789090450458935296",
-      "zone": "먼지 B(탕비실)",
-      "category": "먼지",
-      "reason": "preference",
-      "createdAt": "26. 5. 17. 오후 5:25:08",
-      "imagePath": "assets/cleaning-zones/dust_b.png"
-    }
-  ],
+  "assignments": [],
   "cleaningDrawSessions": {
     "2026-05-18": {
       "assignmentDate": "2026-05-18",
@@ -205,7 +182,7 @@
   "gatheringsByChannel": {
     "1505171640605216889": {
       "meetingDate": "2026-05-22",
-      "voteDeadline": "2026-05-17",
+      "voteDeadline": "2026-05-20",
       "venueOptions": [
         {
           "name": "안암(안국역)",
@@ -223,20 +200,9 @@
           "venueUrl": "https://naver.me/x8tp8jOa"
         }
       ],
-      "participants": [
-        {
-          "discordUserId": "789090450458935296",
-          "name": "91"
-        },
-        {
-          "discordUserId": "1503245272871079976",
-          "name": "Andy"
-        }
-      ],
-      "votes": {
-        "1503245272871079976": "안암(안국역)"
-      },
-      "voteResultAnnouncedAt": "2026-05-17T15:00:54.037Z"
+      "participants": [],
+      "votes": {},
+      "voteResultAnnouncedAt": "2026-05-20T15:00:54.037Z"
     }
   }
 }

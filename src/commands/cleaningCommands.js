@@ -1,4 +1,4 @@
-import { AttachmentBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { AttachmentBuilder, EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import { config } from '../config/env.js';
 import {
   buildResultSummary,
@@ -111,7 +111,11 @@ async function handleCleaningCommand(interaction) {
     const imagePath = await resolveAssignmentImagePath(myAssignment, store);
     const files = imagePath ? [new AttachmentBuilder(imagePath)] : [];
     const exemptMembers = await getThisWeekExemptMembers(store);
-    await interaction.reply({ content: buildResultSummary(assignments, exemptMembers), files, flags: MessageFlags.Ephemeral });
+    await interaction.reply({
+      embeds: [buildCleaningResultSummaryEmbed(assignments, exemptMembers)],
+      files,
+      flags: MessageFlags.Ephemeral,
+    });
   }
 }
 
@@ -197,4 +201,11 @@ function findInteractionMember(store, interaction) {
   return store.members.find((item) => item.discordUserId === interaction.user.id)
     || store.members.find((item) => item.id.toUpperCase() === interaction.user.username.toUpperCase())
     || store.members.find((item) => item.name.toUpperCase() === interaction.member.displayName.toUpperCase());
+}
+
+function buildCleaningResultSummaryEmbed(assignments, exemptMembers) {
+  return new EmbedBuilder()
+    .setColor(0x2f80ed)
+    .setTitle('이번 주 청소 결과')
+    .setDescription(buildResultSummary(assignments, exemptMembers));
 }

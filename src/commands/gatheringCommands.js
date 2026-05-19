@@ -1,4 +1,4 @@
-import { MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
+import { EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import {
   assertGatheringChannel,
   getGatheringSnapshot,
@@ -84,21 +84,28 @@ async function handleJoin(interaction) {
     name,
   });
 
-  await interaction.reply(`${formatChannelName(interaction)} ${name}님 참가 신청 완료!`);
+  await interaction.reply({
+    content: `${formatChannelName(interaction)} ${name}님, 참가 신청이 완료되었습니다.`,
+    flags: MessageFlags.Ephemeral,
+  });
 }
 
 async function handleLeave(interaction) {
   assertGatheringChannel(interaction.channelId);
 
   await leaveGathering(interaction.channelId, interaction.user.id);
-  await interaction.reply({ content: '참가 신청을 취소했어요.', flags: MessageFlags.Ephemeral });
+  await interaction.reply({ content: '참가 신청을 취소했습니다.', flags: MessageFlags.Ephemeral });
 }
 
 async function handleSummary(interaction) {
   assertGatheringChannel(interaction.channelId);
+  const summary = await getGatheringSummary(interaction.channelId, getChannelName(interaction));
 
   await interaction.reply({
-    content: await getGatheringSummary(interaction.channelId, getChannelName(interaction)),
+    embeds: [new EmbedBuilder()
+      .setColor(0x27ae60)
+      .setTitle('모임 현황')
+      .setDescription(stripSummaryTitle(summary))],
     flags: MessageFlags.Ephemeral,
   });
 }
@@ -109,4 +116,8 @@ function formatChannelName(interaction) {
 
 function getChannelName(interaction) {
   return interaction.channel?.name || interaction.channelId;
+}
+
+function stripSummaryTitle(summary) {
+  return summary.replace(/^.+모임 현황\n\n/, '');
 }

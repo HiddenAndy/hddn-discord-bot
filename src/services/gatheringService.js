@@ -161,6 +161,19 @@ export async function leaveGathering(channelId, discordUserId) {
   });
 }
 
+export async function resetGatheringVoteStatus(channelId) {
+  return updateStore((store) => {
+    const gathering = getFreshGatheringForChannel(store, channelId);
+    const participantCount = gathering.participants.length;
+    const voteCount = Object.keys(gathering.votes || {}).length;
+    gathering.participants = [];
+    gathering.votes = {};
+    gathering.voteResultAnnouncedAt = '';
+
+    return { participantCount, voteCount };
+  });
+}
+
 export async function resetGathering(channelId) {
   await updateStore((store) => {
     store.gatheringsByChannel[channelId] = createEmptyGathering();
