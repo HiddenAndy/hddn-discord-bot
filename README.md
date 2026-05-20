@@ -136,6 +136,35 @@ npm run commands:register
 - 이후에는 새 코드를 배포하고 봇을 재시작한 뒤 `/명령어갱신`을 실행하면 됩니다.
 - 이 명령은 현재 실행 중인 봇 코드에 포함된 명령어 목록을 Discord에 등록합니다.
 
+## 서버 운영
+
+GCP VM에서 systemd 서비스로 실행 중인 경우, 코드를 업데이트한 뒤에는 봇 프로세스를 재시작해야 새 코드가 반영됩니다.
+
+GCP VM 생성, Free Tier 조건, systemd 등록, SQLite 백업, 서버 이전 절차는 [GCP 운영 가이드](./GCP_OPERATIONS.md)를 참고합니다.
+
+일반 업데이트:
+
+```bash
+cd ~/hddn-discord-bot
+git pull
+npm ci --omit=dev
+sudo systemctl restart hddn-discord-bot
+sudo systemctl status hddn-discord-bot
+```
+
+실시간 로그 확인:
+
+```bash
+journalctl -u hddn-discord-bot -f
+```
+
+상황별 처리:
+
+- 코드만 바뀐 경우: `git pull` 후 `sudo systemctl restart hddn-discord-bot`
+- `package.json` 또는 `package-lock.json`이 바뀐 경우: `npm ci --omit=dev` 후 재시작
+- 새 슬래시 명령어를 추가하거나 이름/설명을 바꾼 경우: 재시작 후 `/명령어갱신` 또는 `npm run commands:register`
+- `.env`를 바꾼 경우: `sudo systemctl restart hddn-discord-bot`
+
 ## 청소 운영
 
 매주 설정된 요일/시간에 `CLEANING_CHANNEL_ID` 채널로 추첨 버튼이 올라갑니다. 기본값은 월요일 12:55입니다.
