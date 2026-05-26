@@ -29,7 +29,7 @@ export function mondayKey(date = new Date()) {
   const parts = getLocalDateParts(date);
   const zonedDate = new Date(parts.year, parts.month - 1, parts.day);
   const day = zonedDate.getDay();
-  const diff = (8 - day) % 7;
+  const diff = day === 0 ? -6 : 1 - day;
   zonedDate.setDate(zonedDate.getDate() + diff);
   return formatKey({
     year: zonedDate.getFullYear(),
