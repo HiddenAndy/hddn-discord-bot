@@ -9,7 +9,7 @@ export function assertGatheringChannel(channelId) {
   }
 }
 
-export async function setGatheringMeetingDate(channelId, meetingDate) {
+export async function setGatheringMeetingDate(channelId, meetingDate, options = {}) {
   validateDateKey(meetingDate, '모임일');
 
   if (meetingDate < todayKey()) {
@@ -19,6 +19,9 @@ export async function setGatheringMeetingDate(channelId, meetingDate) {
   await updateStore((store) => {
     const gathering = getFreshGatheringForChannel(store, channelId);
     gathering.meetingDate = meetingDate;
+    gathering.feedbackEnabled = Boolean(options.feedbackEnabled);
+    gathering.feedbackRequestedAt = '';
+    gathering.feedbackResponses = {};
     gathering.voteResultAnnouncedAt = '';
   });
 }
@@ -168,6 +171,8 @@ export async function resetGatheringVoteStatus(channelId) {
     const voteCount = Object.keys(gathering.votes || {}).length;
     gathering.participants = [];
     gathering.votes = {};
+    gathering.feedbackRequestedAt = '';
+    gathering.feedbackResponses = {};
     gathering.voteResultAnnouncedAt = '';
 
     return { participantCount, voteCount };
@@ -208,6 +213,66 @@ export async function consumeClosedGatheringVoteResults() {
   });
 }
 
+export async function consumeDueGatheringFeedbackRequests(now = new Date()) {
+  return updateStore((store) => {
+    const results = [];
+    const gatheringsByChannel = store.gatheringsByChannel || {};
+
+    Object.entries(gatheringsByChannel).forEach(([channelId, rawGathering]) => {
+      const gathering = normalizeGathering(rawGathering);
+      if (!isFeedbackRequestDue(gathering, now)) {
+        return;
+      }
+
+      gathering.feedbackRequestedAt = now.toISOString();
+      results.push({
+        channelId,
+        gathering: cloneGathering(gathering),
+      });
+    });
+
+    return results;
+  });
+}
+
+export async function saveGatheringFeedback(channelId, discordUserId, feedback) {
+  const rating = Number(feedback.rating);
+  const comment = String(feedback.comment || '').trim();
+
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    throw new UserFacingError('별점은 1부터 5 사이 숫자로 입력해주세요.');
+  }
+
+  if (!comment) {
+    throw new UserFacingError('한줄평을 입력해주세요.');
+  }
+
+  return updateStore((store) => {
+    const gathering = getGatheringForChannel(store, channelId);
+    if (!gathering.feedbackEnabled) {
+      throw new UserFacingError('이 모임은 후기를 받지 않도록 설정되어 있어요.');
+    }
+
+    const participant = gathering.participants.find((item) => item.discordUserId === discordUserId);
+    if (!participant) {
+      throw new UserFacingError('이 모임 참여자만 후기를 남길 수 있어요.');
+    }
+
+    gathering.feedbackResponses[discordUserId] = {
+      discordUserId,
+      name: participant.name,
+      rating,
+      comment,
+      submittedAt: new Date().toISOString(),
+    };
+
+    return {
+      participant,
+      feedback: { ...gathering.feedbackResponses[discordUserId] },
+    };
+  });
+}
+
 function getGatheringForChannel(store, channelId) {
   if (!store.gatheringsByChannel) {
     store.gatheringsByChannel = {};
@@ -237,6 +302,9 @@ function createEmptyGathering() {
     venueOptions: [],
     participants: [],
     votes: {},
+    feedbackEnabled: false,
+    feedbackRequestedAt: '',
+    feedbackResponses: {},
     voteResultAnnouncedAt: '',
   };
 }
@@ -248,6 +316,11 @@ function cloneGathering(gathering) {
     venueOptions: gathering.venueOptions.map((venue) => ({ ...venue })),
     participants: gathering.participants.map((participant) => ({ ...participant })),
     votes: { ...gathering.votes },
+    feedbackEnabled: Boolean(gathering.feedbackEnabled),
+    feedbackRequestedAt: gathering.feedbackRequestedAt || '',
+    feedbackResponses: Object.fromEntries(
+      Object.entries(gathering.feedbackResponses || {}).map(([userId, response]) => [userId, { ...response }]),
+    ),
     voteResultAnnouncedAt: gathering.voteResultAnnouncedAt || '',
   };
 }
@@ -278,6 +351,13 @@ function normalizeGathering(gathering) {
   }
   if (!gathering.votes) {
     gathering.votes = {};
+  }
+  gathering.feedbackEnabled = Boolean(gathering.feedbackEnabled);
+  if (!gathering.feedbackRequestedAt) {
+    gathering.feedbackRequestedAt = '';
+  }
+  if (!gathering.feedbackResponses) {
+    gathering.feedbackResponses = {};
   }
   if (!gathering.voteResultAnnouncedAt) {
     gathering.voteResultAnnouncedAt = '';
@@ -332,6 +412,41 @@ function isPastMeeting(gathering) {
 
 function isVoteClosed(gathering) {
   return Boolean(gathering.voteDeadline && gathering.voteDeadline < todayKey());
+}
+
+function isFeedbackRequestDue(gathering, now) {
+  if (!gathering.feedbackEnabled || !gathering.meetingDate || gathering.feedbackRequestedAt) {
+    return false;
+  }
+
+  if (gathering.participants.length === 0) {
+    return false;
+  }
+
+  const [dateKey, timeText] = formatLocalDateTime(now);
+  return dateKey === gathering.meetingDate && timeText >= '21:00';
+}
+
+function formatLocalDateTime(date) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: config.timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date).reduce((result, part) => {
+    if (part.type !== 'literal') {
+      result[part.type] = part.value;
+    }
+    return result;
+  }, {});
+
+  return [
+    `${parts.year}-${parts.month}-${parts.day}`,
+    `${parts.hour}:${parts.minute}`,
+  ];
 }
 
 function countVotes(gathering, venue) {

@@ -13,6 +13,7 @@ import {
   addGatheringVenue,
   assertGatheringChannel,
   getGatheringSnapshot,
+  saveGatheringFeedback,
   setGatheringMeetingDate,
   startGatheringVote,
   updateGatheringVenue,
@@ -120,7 +121,9 @@ async function handleScheduleModal(interaction) {
 async function handleGatheringDateModal(interaction) {
   assertGatheringAdminInteraction(interaction);
 
-  await setGatheringMeetingDate(interaction.channelId, interaction.fields.getTextInputValue('meetingDate'));
+  await setGatheringMeetingDate(interaction.channelId, interaction.fields.getTextInputValue('meetingDate'), {
+    feedbackEnabled: parseBooleanInput(interaction.fields.getTextInputValue('feedbackEnabled')),
+  });
 
   await interaction.reply(buildGatheringAdminPanel(await getGatheringSnapshot(interaction.channelId), getChannelName(interaction)));
 }
@@ -159,6 +162,18 @@ async function handleGatheringVoteModal(interaction) {
   );
 
   await interaction.reply(buildGatheringVoteMessage(gathering, getChannelName(interaction)));
+}
+
+async function handleGatheringFeedbackModal(interaction) {
+  const channelId = interaction.customId.replace(GATHERING_ADMIN_CUSTOM_IDS.feedbackModalPrefix, '');
+  const result = await saveGatheringFeedback(channelId, interaction.user.id, {
+    rating: interaction.fields.getTextInputValue('rating'),
+    comment: interaction.fields.getTextInputValue('comment'),
+  });
+
+  await interaction.reply({
+    content: `${result.participant.name}님, 모임 후기를 남겼습니다.`,
+  });
 }
 
 function assertCleaningAdminInteraction(interaction) {
@@ -200,6 +215,10 @@ function getDynamicModalHandler(customId) {
 
   if (customId.startsWith(GATHERING_ADMIN_CUSTOM_IDS.editVenueModalPrefix)) {
     return handleGatheringEditVenueModal;
+  }
+
+  if (customId.startsWith(GATHERING_ADMIN_CUSTOM_IDS.feedbackModalPrefix)) {
+    return handleGatheringFeedbackModal;
   }
 
   return null;

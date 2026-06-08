@@ -1,5 +1,6 @@
 import { EmbedBuilder, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
 import {
+  addGatheringVenue,
   assertGatheringChannel,
   getGatheringSnapshot,
   getGatheringSummary,
@@ -13,6 +14,7 @@ const commandNames = {
   join: '참여',
   leave: '신청취소',
   summary: '현황',
+  addVenue: '후보추가',
   settings: '모임설정',
   test: '모임테스트',
 };
@@ -35,6 +37,24 @@ export const gatheringUserCommands = [
       .setName(commandNames.summary)
       .setDescription('[소모임] 현재 채널의 모임 현황을 봅니다.'),
     execute: handleSummary,
+  },
+  {
+    data: new SlashCommandBuilder()
+      .setName(commandNames.addVenue)
+      .setDescription('[소모임] 현재 채널의 모임 장소 후보를 추가합니다.')
+      .addStringOption((option) => option
+        .setName('장소명')
+        .setDescription('추가할 장소 이름')
+        .setRequired(true))
+      .addStringOption((option) => option
+        .setName('장소url')
+        .setDescription('장소 링크')
+        .setRequired(false))
+      .addStringOption((option) => option
+        .setName('설명')
+        .setDescription('장소 설명')
+        .setRequired(false)),
+    execute: handleAddVenue,
   },
 ];
 
@@ -106,6 +126,32 @@ async function handleSummary(interaction) {
       .setColor(0x27ae60)
       .setTitle('모임 현황')
       .setDescription(stripSummaryTitle(summary))],
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+async function handleAddVenue(interaction) {
+  assertGatheringChannel(interaction.channelId);
+
+  const venue = {
+    name: interaction.options.getString('장소명'),
+    venueUrl: interaction.options.getString('장소url') || '',
+    description: interaction.options.getString('설명') || '',
+  };
+  await addGatheringVenue(interaction.channelId, venue);
+
+  await interaction.reply({
+    embeds: [
+      new EmbedBuilder()
+        .setColor(0x27ae60)
+        .setTitle('모임 장소 후보 추가')
+        .setDescription(`${venue.name} 후보를 추가했습니다.`)
+        .addFields(
+          { name: '채널', value: formatChannelName(interaction), inline: true },
+          { name: '링크', value: venue.venueUrl || '없음', inline: true },
+          { name: '설명', value: venue.description || '없음' },
+        ),
+    ],
     flags: MessageFlags.Ephemeral,
   });
 }

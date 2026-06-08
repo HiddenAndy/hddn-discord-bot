@@ -48,6 +48,7 @@ import {
   buildGatheringAdminPanel,
   buildGatheringDateModal,
   buildGatheringEditVenueModal,
+  buildGatheringFeedbackModal,
   buildGatheringVenueModal,
   buildGatheringVoteModal,
   GATHERING_ADMIN_CUSTOM_IDS,
@@ -287,6 +288,10 @@ function getDynamicButtonHandler(customId) {
     return handleGatheringEditSelectedVenueButton;
   }
 
+  if (customId.startsWith(GATHERING_ADMIN_CUSTOM_IDS.feedbackOpenPrefix)) {
+    return handleGatheringFeedbackOpenButton;
+  }
+
   return null;
 }
 
@@ -346,6 +351,11 @@ async function handleGatheringResetButton(interaction) {
 async function handleGatheringRefreshButton(interaction) {
   assertGatheringAdminInteraction(interaction);
   await interaction.update(buildGatheringAdminPanel(await getGatheringSnapshot(interaction.channelId), getChannelName(interaction)));
+}
+
+async function handleGatheringFeedbackOpenButton(interaction) {
+  const channelId = interaction.customId.replace(GATHERING_ADMIN_CUSTOM_IDS.feedbackOpenPrefix, '');
+  await interaction.showModal(buildGatheringFeedbackModal(channelId));
 }
 
 async function handleGatheringResultJoinButton(interaction) {

@@ -22,6 +22,8 @@ export const GATHERING_ADMIN_CUSTOM_IDS = {
   resetVoteStatus: 'gathering-admin:reset-vote-status',
   reset: 'gathering-admin:reset',
   refresh: 'gathering-admin:refresh',
+  feedbackModalPrefix: 'gathering-feedback:modal:',
+  feedbackOpenPrefix: 'gathering-feedback:open:',
   dateModal: 'gathering-admin:date-modal',
   venueModal: 'gathering-admin:venue-modal',
   editVenueModalPrefix: 'gathering-admin:edit-venue-modal:',
@@ -76,6 +78,7 @@ export function buildGatheringAdminPanel(gathering, channelName, options = {}) {
       '**일정**',
       `모임일: ${formatDateWithWeekday(gathering.meetingDate)}`,
       `투표 마감: ${formatDateWithWeekday(gathering.voteDeadline)}`,
+      `후기 요청: ${gathering.feedbackEnabled ? '사용' : '미사용'}`,
       '',
       '**모임 장소 후보**',
       formatVenueList(gathering),
@@ -84,6 +87,7 @@ export function buildGatheringAdminPanel(gathering, channelName, options = {}) {
       '**참여/투표**',
       `참여자: ${gathering.participants.length}명`,
       `투표수: ${Object.keys(gathering.votes || {}).length}표`,
+      `후기: ${Object.keys(gathering.feedbackResponses || {}).length}개`,
     ].join('\n'),
     components,
     flags: MessageFlags.Ephemeral,
@@ -96,6 +100,7 @@ export function buildGatheringDateModal(gathering) {
     .setTitle('모임일 설정')
     .addComponents(
       buildTextInputRow('meetingDate', '모임일', 'YYYY-MM-DD', true, gathering.meetingDate),
+      buildTextInputRow('feedbackEnabled', '후기 요청', 'Y 또는 N', true, gathering.feedbackEnabled ? 'Y' : 'N'),
     );
 }
 
@@ -129,6 +134,16 @@ export function buildGatheringVoteModal(gathering) {
     .setTitle('투표 시작')
     .addComponents(
       buildTextInputRow('voteDeadline', '투표 마감일', 'YYYY-MM-DD', true, gathering.voteDeadline),
+    );
+}
+
+export function buildGatheringFeedbackModal(channelId) {
+  return new ModalBuilder()
+    .setCustomId(`${GATHERING_ADMIN_CUSTOM_IDS.feedbackModalPrefix}${channelId}`)
+    .setTitle('모임 후기')
+    .addComponents(
+      buildTextInputRow('rating', '별점', '1부터 5 사이 숫자', true),
+      buildTextInputRow('comment', '한줄평', '오늘 모임은 어땠나요?', true, '', TextInputStyle.Paragraph),
     );
 }
 

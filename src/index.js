@@ -61,11 +61,14 @@ async function replyError(interaction, error) {
   const content = error instanceof UserFacingError
     ? error.message
     : '처리 중 오류가 났어요. 콘솔 로그를 확인해주세요.';
+  const payload = interaction.inGuild?.()
+    ? { content, flags: MessageFlags.Ephemeral }
+    : { content };
 
   if (interaction.deferred || interaction.replied) {
-    await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
+    await interaction.followUp(payload);
   } else {
-    await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+    await interaction.reply(payload);
   }
 }
 
