@@ -145,14 +145,13 @@ async function handleAddVenue(interaction) {
       new EmbedBuilder()
         .setColor(0x27ae60)
         .setTitle('모임 장소 후보 추가')
-        .setDescription(`${venue.name} 후보를 추가했습니다.`)
+        .setDescription(`${interaction.member?.displayName || interaction.user.username}님이 ${venue.name} 후보를 추가했습니다.`)
         .addFields(
           { name: '채널', value: formatChannelName(interaction), inline: true },
           { name: '링크', value: venue.venueUrl || '없음', inline: true },
           { name: '설명', value: venue.description || '없음' },
         ),
     ],
-    flags: MessageFlags.Ephemeral,
   });
 }
 
